@@ -2,23 +2,34 @@ package balancer
 
 import (
 	"go-loadbalancer/server"
+	"sync/atomic"
 )
 
 type LoadBalancer struct {
 	backends []*server.Backend
-	current  uint64 // ایندکس چرخشی
+	current  uint64
 }
 
 func NewLoadBalancer(backends []*server.Backend) *LoadBalancer {
-	// TODO: مقداردهی اولیه LoadBalancer با اسلایس backends.
-	return nil
+	return &LoadBalancer{
+		backends: backends,
+	}
 }
 
 func (lb *LoadBalancer) GetNextValidBackend() *server.Backend {
-	// TODO:
-	// ۱. با atomic.AddUint64(&lb.current, 1) مقدار current را به صورت Safe یکی اضافه کن.
-	// ۲. با استفاده از باقیمانده تقسیم (index = current % len(lb.backends)) سرور بعدی را انتخاب کن.
-	// ۳. یک حلقه بزن تا سروری را پیدا کنی که IsAlive() آن true باشد.
-	// ۴. اگر هیچ سروری سالم نبود، nil برگردان.
+	n := len(lb.backends)
+	if n == 0 {
+		return nil
+	}
+
+	next := atomic.AddUint64(&lb.current, 1)
+
+	for i := 0; i < n; i++ {
+		idx := int((next + uint64(i)) % uint64(n))
+		if lb.backends[idx].IsAlive() {
+			return lb.backends[idx]
+		}
+	}
+
 	return nil
 }
