@@ -14,22 +14,36 @@ type RateLimiter struct {
 	mu      sync.Mutex
 	limit   int
 	window  time.Duration
-	clients map[string]*client // نگهداری وضعیت هر IP
+	clients map[string]*client
 }
 
 func NewRateLimiter(limit int, window time.Duration) *RateLimiter {
-	// TODO:
-	// مقداردهی اولیه ساختار RateLimiter به همراه یک map خالی برای clients.
-	return nil
+	return &RateLimiter{
+		limit:   limit,
+		window:  window,
+		clients: make(map[string]*client),
+	}
 }
 
 func (rl *RateLimiter) Allow(ip string) bool {
-	// TODO:
-	// ۱. با rl.mu.Lock() قفل کن.
-	// ۲. چک کن آیا این IP در map وجود دارد یا نه. اگر نبود، بسازش.
-	// ۳. اگر از زمان lastReset بیشتر از rl.window گذشته بود، count را ۱ کن و lastReset را بروزرسانی کن.
-	// ۴. اگر هنوز درون بازه زمانی هستیم:
-	//    - اگر count < limit بود: یکی به count اضافه کن و true برگردان (اجازه دسترسی).
-	//    - در غیر این صورت: false برگردان (بلاک کردن درخواست).
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+
+	now := time.Now()
+	c, exists := rl.clients[ip]
+
+	if !exists || now.Sub(c.lastReset) > rl.window {
+		rl.clients[ip] = &client{
+			count:     1,
+			lastReset: now,
+		}
+		return true
+	}
+
+	if c.count < rl.limit {
+		c.count++
+		return true
+	}
+
 	return false
 }
